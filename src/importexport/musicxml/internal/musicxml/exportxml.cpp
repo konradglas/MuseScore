@@ -2151,10 +2151,6 @@ void ExportMusicXml::timesig(TimeSig* tsig)
         attrs = { { "symbol", "common" } };
     } else if (st == TimeSigType::ALLA_BREVE) {
         attrs = { { "symbol", "cut" } };
-    } else if (st == TimeSigType::CUT_BACH) {
-        attrs = { { "symbol", "cut2" } };
-    } else if (st == TimeSigType::CUT_TRIPLE) {
-        attrs = { { "symbol", "cut3" } };
     }
     if (!tsig->visible()) {
         attrs.push_back({ "print-object", "no" });
@@ -3187,26 +3183,67 @@ static QString symIdToOrnam(const SymId sid)
 static QString symIdToTechn(const SymId sid)
 {
     switch (sid) {
-    case SymId::brassMuteClosed:
-        return "stopped";
-        break;
-    case SymId::stringsHarmonic:
-        return "harmonic";
-        break;
     case SymId::stringsUpBow:
         return "up-bow";
         break;
     case SymId::stringsDownBow:
         return "down-bow";
         break;
-    case SymId::pluckedSnapPizzicatoAbove:
-        return "snap-pizzicato";
-        break;
-    case SymId::brassMuteOpen:
-        return "open-string";
+    case SymId::stringsHarmonic:
+        return "harmonic";
         break;
     case SymId::stringsThumbPosition:
+    case SymId::stringsThumbPositionTurned:
         return "thumb-position";
+        break;
+    case SymId::doubleTongueAbove:
+    case SymId::doubleTongueBelow:
+        return "double-tongue";
+        break;
+    case SymId::tripleTongueAbove:
+    case SymId::tripleTongueBelow:
+        return "triple-tongue";
+        break;
+    case SymId::brassMuteClosed:
+        return "stopped";
+        break;
+    case SymId::pluckedSnapPizzicatoAbove:
+    case SymId::pluckedSnapPizzicatoBelow:
+        return "snap-pizzicato";
+        break;
+    case SymId::keyboardPedalHeel1:
+    case SymId::keyboardPedalHeel2:
+    case SymId::keyboardPedalHeel3:
+        return "heel";
+        break;
+    case SymId::keyboardPedalToe1:
+    case SymId::keyboardPedalToe2:
+        return "toe";
+        break;
+    case SymId::pluckedWithFingernails:
+        return "fingernails";
+        break;
+    case SymId::brassBend:
+        return "brass-bend";
+        break;
+    case SymId::brassFlip:
+        return "brass-flip";
+        break;
+    case SymId::brassSmear:
+        return "smear";
+        break;
+    case SymId::brassMuteOpen:
+        // return "open-string";
+        return "open";
+        break;
+    case SymId::brassMuteHalfClosed:
+        return "half-muted";
+        break;
+    case SymId::brassHarmonMuteClosed:
+        return "harmon-mute";
+        break;
+    case SymId::guitarGolpe:
+        return "golpe";
         break;
     default:
         ;           // nothing
@@ -3393,6 +3430,7 @@ void ExportMusicXml::chordAttributes(Chord* chord, Notations& notations, Technic
             notations.tag(_xml, a);
             technical.tag(_xml);
             mxmlTechn += color2xml(a);
+            mxmlTechn += ExportMusicXml::positioningAttributes(a);
             if (sid == SymId::stringsHarmonic) {
                 if (placement != "") {
                     attr += QString(" placement=\"%1\"").arg(placement);
@@ -3585,8 +3623,8 @@ static void writeBeam(XmlWriter& xml, ChordRest* const cr, Beam* const b)
         // TODO: correctly handle Beam::Mode::AUTO
         // when equivalent to BEGIN32 or BEGIN64
         if ((blp < i && bln >= i)
-            || bmc == BeamMode::BEGIN16 && i > 1
-            || bmc == BeamMode::BEGIN32 && i > 2) {
+            || (bmc == BeamMode::BEGIN16 && i > 1)
+            || (bmc == BeamMode::BEGIN32 && i > 2)) {
             text = "begin";
         } else if (blp < i && bln < i) {
             if (bln > 0) {
@@ -3595,8 +3633,8 @@ static void writeBeam(XmlWriter& xml, ChordRest* const cr, Beam* const b)
                 text = "backward hook";
             }
         } else if ((blp >= i && bln < i)
-                   || bmn == BeamMode::BEGIN16 && i > 1
-                   || bmn == BeamMode::BEGIN32 && i > 2) {
+                   || (bmn == BeamMode::BEGIN16 && i > 1)
+                   || (bmn == BeamMode::BEGIN32 && i > 2)) {
             text = "end";
         } else if (blp >= i && bln >= i) {
             text = "continue";
@@ -4936,7 +4974,8 @@ static void writeHairpinText(XmlWriter& xml, const TextLineBase* const tlb, bool
             xml.startElement("direction-type");
             QString tag = "words";
             tag
-                += QString(" font-family=\"%1\"").arg(tlb->getProperty(isStart ? Pid::BEGIN_FONT_FACE : Pid::END_FONT_FACE).value<String>());
+                += QString(" font-family=\"%1\"").arg(tlb->getProperty(isStart ? Pid::BEGIN_FONT_FACE
+                                                                       : Pid::END_FONT_FACE).value<String>());
             tag += QString(" font-size=\"%1\"").arg(tlb->getProperty(isStart ? Pid::BEGIN_FONT_SIZE : Pid::END_FONT_SIZE).toReal());
             tag += fontStyleToXML(static_cast<FontStyle>(tlb->getProperty(isStart ? Pid::BEGIN_FONT_STYLE : Pid::END_FONT_STYLE).toInt()));
             tag += color2xml(tlb);
@@ -4974,6 +5013,10 @@ void ExportMusicXml::hairpin(Hairpin const* const hp, staff_idx_t staff, const F
     const auto isLineType = hp->isLineType();
     int n;
     if (isLineType) {
+        if (!hp->lineVisible() && ((hp->beginText().isEmpty() && hp->tick() == tick)
+                                   || (hp->endText().isEmpty() && hp->tick() != tick))) {
+            return;
+        }
         n = findDashes(hp);
         if (n >= 0) {
             dashes[n] = nullptr;
@@ -5159,12 +5202,15 @@ void ExportMusicXml::pedal(Pedal const* const pd, staff_idx_t staff, const Fract
             pedalType = "change";
             break;
         case HookType::NONE:
-            pedalType = "resume";
+            pedalType = pd->lineVisible() ? "resume" : "start";
             break;
         default:
             pedalType = "start";
         }
-        signText = pd->beginText() == "" ? " sign=\"no\"" : " sign=\"yes\"";
+        signText = pd->beginText().isEmpty() ? " sign=\"no\"" : " sign=\"yes\"";
+        if (pd->beginText() == u"<sym>keyboardPedalSost</sym>" || pd->beginText() == u"<sym>keyboardPedalS</sym>") {
+            pedalType = "sostenuto";
+        }
     } else {
         if (!pd->endText().isEmpty() || pd->endHookType() == HookType::HOOK_90) {
             pedalType = "stop";
@@ -5173,7 +5219,7 @@ void ExportMusicXml::pedal(Pedal const* const pd, staff_idx_t staff, const Fract
         }
         // "change" type is handled only on the beginning of pedal lines
 
-        signText = pd->endText() == "" ? " sign=\"no\"" : " sign=\"yes\"";
+        signText = pd->endText().isEmpty() ? " sign=\"no\"" : " sign=\"yes\"";
     }
     pedalXml = QString("pedal type=\"%1\"").arg(pedalType);
     pedalXml += lineText;
@@ -5207,6 +5253,12 @@ int ExportMusicXml::findBracket(const TextLineBase* tl) const
 void ExportMusicXml::textLine(TextLineBase const* const tl, staff_idx_t staff, const Fraction& tick)
 {
     using namespace mu::draw;
+
+    if (!tl->lineVisible() && ((tl->beginText().isEmpty() && tl->tick() == tick)
+                               || (tl->endText().isEmpty() && tl->tick() != tick))) {
+        return;
+    }
+
     int n;
     // special case: a dashed line w/o hooks is written as dashes
     const auto isDashes = tl->lineStyle() == LineType::DASHED && (tl->beginHookType() == HookType::NONE)
@@ -5308,13 +5360,15 @@ void ExportMusicXml::textLine(TextLineBase const* const tl, staff_idx_t staff, c
         _xml.endElement();
     }
 
-    _xml.startElement("direction-type");
-    if (isDashes) {
-        _xml.tag("dashes", { { "type", type }, { "number", n + 1 } });
-    } else {
-        _xml.tagRaw(QString("bracket type=\"%1\" number=\"%2\" line-end=\"%3\"%4").arg(type, QString::number(n + 1), lineEnd, rest));
+    if (tl->lineVisible()) {
+        _xml.startElement("direction-type");
+        if (isDashes) {
+            _xml.tag("dashes", { { "type", type }, { "number", n + 1 } });
+        } else {
+            _xml.tagRaw(QString("bracket type=\"%1\" number=\"%2\" line-end=\"%3\"%4").arg(type, QString::number(n + 1), lineEnd, rest));
+        }
+        _xml.endElement();
     }
-    _xml.endElement();
 
     if (!tl->endText().isEmpty() && tl->tick() != tick) {
         _xml.startElement("direction-type");
@@ -7875,7 +7929,8 @@ void ExportMusicXml::write(mu::io::IODevice* dev)
 
     _xml.setDevice(dev);
     _xml.startDocument();
-    _xml.writeDoctype(u"score-partwise PUBLIC \"-//Recordare//DTD MusicXML 4.0 Partwise//EN\" \"http://www.musicxml.org/dtds/partwise.dtd\"");
+    _xml.writeDoctype(
+        u"score-partwise PUBLIC \"-//Recordare//DTD MusicXML 4.0 Partwise//EN\" \"http://www.musicxml.org/dtds/partwise.dtd\"");
 
     _xml.startElement("score-partwise", { { "version", "4.0" } });
 

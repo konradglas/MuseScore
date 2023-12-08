@@ -40,7 +40,7 @@ enum class LD_ACCESS {
 //! TODO Using this macro, we can collect and output debugging information to show the dependency tree
 #define LD_CONDITION(val) \
     if (!val) { \
-        LOGE_T("LD_ACCESS")() << "BAD ACCESS to: " << #val; \
+        LOGE_T("LD_ACCESS")() << "BAD ACCESS to: " << #val << ", file: " << __FILE__ << ", line: " << __LINE__; \
     } \
 
 #else
@@ -112,7 +112,8 @@ class ld_field_prod
 {
 public:
 
-    ld_field_prod(const char*, T = T()) {}
+    ld_field_prod(const char*, T def = T())
+        : m_val(def) {}
 
     inline void reset() { m_val = T(); }
 

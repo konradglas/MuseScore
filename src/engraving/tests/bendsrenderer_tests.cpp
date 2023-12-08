@@ -87,7 +87,8 @@ protected:
         return pattern;
     }
 
-    RenderingContext buildCtx(const Chord* chord, ArticulationsProfilePtr profile)
+    RenderingContext buildCtx(const Chord* chord, ArticulationsProfilePtr profile,
+                              ArticulationType persistentArticulationType = ArticulationType::Standard)
     {
         int chordPosTick = chord->tick().ticks();
         int chordDurationTicks = chord->actualTicks().ticks();
@@ -103,7 +104,7 @@ protected:
                              chordDurationTicks,
                              bps,
                              timeSignatureFraction,
-                             ArticulationType::Undefined,
+                             persistentArticulationType,
                              ArticulationMap(),
                              profile);
 
@@ -130,7 +131,8 @@ TEST_F(Engraving_BendsRendererTests, Multibend)
     profile->setPattern(ArticulationType::Standard, buildTestArticulationPattern());
     profile->setPattern(ArticulationType::Multibend, buildTestArticulationPattern());
     profile->setPattern(ArticulationType::PreAppoggiatura, buildTestArticulationPattern());
-    RenderingContext ctx = buildCtx(startChord, profile);
+    profile->setPattern(ArticulationType::Distortion, buildTestArticulationPattern());
+    RenderingContext ctx = buildCtx(startChord, profile, ArticulationType::Distortion);
 
     // [THEN] BendsRenderer can render the multibend articulation
     EXPECT_TRUE(BendsRenderer::isAbleToRender(ArticulationType::Multibend));
@@ -145,7 +147,8 @@ TEST_F(Engraving_BendsRendererTests, Multibend)
 
     const mu::mpe::NoteEvent& noteEvent = std::get<mu::mpe::NoteEvent>(events.front());
 
-    //EXPECT_TRUE(noteEvent.expressionCtx().articulations.contains(ArticulationType::Multibend));
+    EXPECT_TRUE(noteEvent.expressionCtx().articulations.contains(ArticulationType::Multibend));
+    EXPECT_TRUE(noteEvent.expressionCtx().articulations.contains(ArticulationType::Distortion)); // persistent articulation applied
     EXPECT_EQ(noteEvent.arrangementCtx().actualTimestamp, 500000); // starts after a quarter rest
     EXPECT_EQ(noteEvent.arrangementCtx().actualDuration, 3000000); // quarters: F3 + G3 + F3 + A3 + A3 + G3
     EXPECT_EQ(noteEvent.pitchCtx().nominalPitchLevel, 2050); // F3
@@ -226,7 +229,8 @@ TEST_F(Engraving_BendsRendererTests, MultipleBendsOnOneChord)
 }
 
 /*!
- * @details Render a pre-bend (bend G3 up to A3 and release down to G3)
+ * @details Render a pre-bend with the following structure:
+ * Pre-bend G3 up to A3 -> hold for 1 quarter -> release down to G3
  * Check that we ignore the grace note (A3) and render only the principal note (G3)
  */
 TEST_F(Engraving_BendsRendererTests, PreBend)
@@ -251,11 +255,11 @@ TEST_F(Engraving_BendsRendererTests, PreBend)
 
     PitchCurve expectedPitchCurve;
     expectedPitchCurve.emplace(0, 0); // A3
-    expectedPitchCurve.emplace(5000, -100); // Release down to G3
+    expectedPitchCurve.emplace(6600, -100); // Release down to G3
 
     const mu::mpe::NoteEvent& event = std::get<mu::mpe::NoteEvent>(events.front());
     EXPECT_EQ(event.pitchCtx().nominalPitchLevel, 2250); // A3
-    EXPECT_EQ(event.arrangementCtx().actualDuration, 1000000); // A3 + G3
+    EXPECT_EQ(event.arrangementCtx().actualDuration, 1500000); // quarters: A3 + A3 + G3
     EXPECT_EQ(event.pitchCtx().pitchCurve, expectedPitchCurve);
 }
 

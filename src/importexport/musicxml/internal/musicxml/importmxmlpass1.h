@@ -151,8 +151,8 @@ public:
     void note(const QString& partId, const Fraction cTime, Fraction& missingPrev, Fraction& dura, Fraction& missingCurr,
               VoiceOverlapDetector& vod, MxmlTupletStates& tupletStates);
     void notePrintSpacingNo(Fraction& dura);
-    Fraction calcTicks(const int& intTicks, const QXmlStreamReader* const xmlReader);
-    Fraction calcTicks(const int& intTicks) { return calcTicks(intTicks, &_e); }
+    Fraction calcTicks(const int& intTicks, const int& _divisions, const QXmlStreamReader* const xmlReader);
+    Fraction calcTicks(const int& intTicks) { return calcTicks(intTicks, _divs, &_e); }
     void duration(Fraction& dura, QXmlStreamReader& e);
     void duration(Fraction& dura) { duration(dura, _e); }
     void forward(Fraction& dura);
@@ -179,7 +179,7 @@ public:
     bool hasBeamingInfo() const { return _hasBeamingInfo; }
     bool isVocalStaff(const QString& id) const { return _parts[id].isVocalStaff(); }
     static VBox* createAndAddVBoxForCreditWords(Score* const score, const int miny = 0, const int maxy = 75);
-    const int maxDiff() { return _maxDiff; }
+    int maxDiff() const { return _maxDiff; }
     void insertAdjustedDuration(Fraction key, Fraction value) { _adjustedDurations.insert(key, value); }
     QMap<Fraction, Fraction>& adjustedDurations() { return _adjustedDurations; }
     void insertSeenDenominator(int val) { _seenDenominators.emplace(val); }

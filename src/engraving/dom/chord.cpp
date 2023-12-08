@@ -416,18 +416,18 @@ void Chord::undoUnlink()
 Chord::~Chord()
 {
     DeleteAll(m_articulations);
-    delete m_arpeggio;
+
     if (m_tremolo) {
         if (m_tremolo->chord1() == this) {
-            Tremolo* tremoloPointer = m_tremolo;       // setTremolo(0) loses reference to the current pointer
-            if (m_tremolo->chord2()) {
-                m_tremolo->chord2()->setTremolo(0);
-            }
-            delete tremoloPointer;
-        } else if (!(m_tremolo->chord1())) { // delete orphaned tremolo
-            delete m_tremolo;
+            m_tremolo->setChord1(nullptr);
+        } else if (m_tremolo->chord2() == this) {
+            m_tremolo->setChord2(nullptr);
         }
+
+        m_tremolo = nullptr;
     }
+
+    delete m_arpeggio;
     delete m_stemSlash;
     delete m_stem;
     delete m_hook;
@@ -512,7 +512,7 @@ double Chord::stemPosX() const
     if (staffType && staffType->isTabStaff()) {
         return staffType->chordStemPosX(this) * spatium();
     }
-    return m_up ? noteHeadWidth() : 0.0;
+    return ldata()->up ? noteHeadWidth() : 0.0;
 }
 
 //! Returns page coordinates
@@ -524,7 +524,7 @@ PointF Chord::stemPos() const
         return pagePos() + staffType->chordStemPos(this) * spatium();
     }
 
-    if (m_up) {
+    if (ldata()->up) {
         const Note* downNote = this->downNote();
         double nhw = m_notes.size() == 1 ? downNote->bboxRightPos() : noteHeadWidth();
         return pagePos() + PointF(nhw, downNote->pos().y());
@@ -544,7 +544,7 @@ PointF Chord::stemPosBeam() const
         return pagePos() + st->chordStemPosBeam(this) * spatium();
     }
 
-    if (m_up) {
+    if (ldata()->up) {
         double nhw = noteHeadWidth();
         return pagePos() + PointF(nhw, upNote()->pos().y());
     }
@@ -778,7 +778,10 @@ void Chord::remove(EngravingItem* e)
     break;
 
     case ElementType::ARPEGGIO:
-        m_arpeggio = 0;
+        if (m_spanArpeggio == m_arpeggio) {
+            m_spanArpeggio = nullptr;
+        }
+        m_arpeggio = nullptr;
         break;
     case ElementType::TREMOLO:
         setTremolo(nullptr);
@@ -1145,7 +1148,7 @@ int Chord::calcMinStemLength()
 
         int outsideStaffOffset = 0;
         if (!staff()->isTabStaff(tick())) {
-            Note* lineNote = m_up ? upNote() : downNote();
+            Note* lineNote = ldata()->up ? upNote() : downNote();
             if (lineNote->line() == INVALID_LINE) {
                 lineNote->updateLine();
             }
@@ -1153,9 +1156,9 @@ int Chord::calcMinStemLength()
             int line = lineNote->line();
             line *= 2; // convert to quarter spaces
 
-            if (!m_up && line < -2) {
+            if (!ldata()->up && line < -2) {
                 outsideStaffOffset = -line;
-            } else if (m_up && line > staff()->lines(tick()) * 4) {
+            } else if (ldata()->up && line > staff()->lines(tick()) * 4) {
                 outsideStaffOffset = line - (staff()->lines(tick()) * 4) + 4;
             }
         }
@@ -1163,7 +1166,7 @@ int Chord::calcMinStemLength()
 
         if (m_hook) {
             bool straightFlags = style().styleB(Sid::useStraightNoteFlags);
-            double smuflAnchor = m_hook->smuflAnchor().y() * (m_up ? 1 : -1);
+            double smuflAnchor = m_hook->smuflAnchor().y() * (ldata()->up ? 1 : -1);
             int hookOffset = floor((m_hook->height() / intrinsicMag() + smuflAnchor) / _spatium * 4) - (straightFlags ? 0 : 2);
             // some fonts have hooks that extend very far down (making the height of the hook very large)
             // so we constrain to a reasonable maximum for hook length
@@ -1196,7 +1199,7 @@ int Chord::calcMinStemLength()
         // for 4+ beams, there are a few situations where we need to lengthen the stem by 1
         int noteLine = line();
         int staffLines = staff()->lines(tick());
-        bool noteInStaff = (m_up && noteLine > 0) || (!m_up && noteLine < (staffLines - 1) * 2);
+        bool noteInStaff = (ldata()->up && noteLine > 0) || (!ldata()->up && noteLine < (staffLines - 1) * 2);
         if (beamCount >= 4 && noteInStaff) {
             newMinStemLength++;
         }
@@ -1363,7 +1366,7 @@ double Chord::calcDefaultStemLength()
     }
     // extraHeight represents the extra vertical distance between notehead and stem start
     // eg. slashed noteheads etc
-    double extraHeight = (m_up ? upNote()->stemUpSE().y() : downNote()->stemDownNW().y()) / intrinsicMag() / _spatium;
+    double extraHeight = (ldata()->up ? upNote()->stemUpSE().y() : downNote()->stemDownNW().y()) / intrinsicMag() / _spatium;
     int shortestStem = style().styleB(Sid::useWideBeams) ? 12 : (style().styleD(Sid::shortestStem) + abs(extraHeight)) * 4;
     int quarterSpacesPerLine = std::floor(lineDistance * 2);
     int chordHeight = (downLine() - upLine()) * quarterSpacesPerLine; // convert to quarter spaces
@@ -1376,8 +1379,9 @@ double Chord::calcDefaultStemLength()
     int shortStemStart = style().styleI(Sid::shortStemStartLocation) * quarterSpacesPerLine + 1;
     bool useWideBeams = style().styleB(Sid::useWideBeams);
     int beamCount = ((m_tremolo && m_tremolo->twoNotes()) ? m_tremolo->lines() : 0) + (m_beam ? beams() : 0);
-    int middleLine
-        = minStaffOverlap(m_up, staffLineCount, beamCount, !!m_hook, useWideBeams ? 4 : 3, useWideBeams, !(isGrace() || isSmall()));
+    int middleLine = minStaffOverlap(ldata()->up, staffLineCount,
+                                     beamCount, !!m_hook, useWideBeams ? 4 : 3,
+                                     useWideBeams, !(isGrace() || isSmall()));
     if (up()) {
         int stemEndPosition = upLine() * quarterSpacesPerLine - defaultStemLength;
         double stemEndPositionMag = (double)upLine() * quarterSpacesPerLine - (defaultStemLength * intrinsicMag());
@@ -1419,11 +1423,11 @@ double Chord::calcDefaultStemLength()
 
     double finalStemLength = (chordHeight / 4.0 * _spatium) + ((stemLength / 4.0 * _spatium) * intrinsicMag());
     double extraLength = 0.;
-    Note* startNote = m_up ? downNote() : upNote();
+    Note* startNote = ldata()->up ? downNote() : upNote();
     if (!startNote->fixed()) {
         // when the chord's magnitude is < 1, the stem length with mag can find itself below the middle line.
         // in those cases, we have to add the extra amount to it to bring it to a minimum.
-        double upValue = m_up ? -1. : 1.;
+        double upValue = ldata()->up ? -1. : 1.;
         double stemStart = startNote->ldata()->pos().y();
         double stemEndMag = stemStart + (finalStemLength * upValue);
         double topLine = 0.0;
@@ -1434,23 +1438,23 @@ double Chord::calcDefaultStemLength()
         if (RealIsEqualOrMore(lineDistance / _spatium, 1.0)) {
             // need to extend to middle line, or to opposite line if staff is < 2sp tall
             if (bottomLine < 2 * _spatium) {
-                target = m_up ? topLine : bottomLine;
+                target = ldata()->up ? topLine : bottomLine;
             } else {
-                double twoSpIn = m_up ? bottomLine - (2 * _spatium) : topLine + (2 * _spatium);
+                double twoSpIn = ldata()->up ? bottomLine - (2 * _spatium) : topLine + (2 * _spatium);
                 target = RealIsEqual(lineDistance / _spatium, 1.0) ? midLine : twoSpIn;
             }
         } else {
             // need to extend to second line in staff, or to opposite line if staff has < 3 lines
             if (staffLineCount < 3) {
-                target = m_up ? topLine : bottomLine;
+                target = ldata()->up ? topLine : bottomLine;
             } else {
-                target = m_up ? bottomLine - (2 * lineDistance) : topLine + (2 * lineDistance);
+                target = ldata()->up ? bottomLine - (2 * lineDistance) : topLine + (2 * lineDistance);
             }
         }
         extraLength = 0.0;
-        if (m_up && stemEndMag > target) {
+        if (ldata()->up && stemEndMag > target) {
             extraLength = stemEndMag - target;
-        } else if (!m_up && stemEndMag < target) {
+        } else if (!ldata()->up && stemEndMag < target) {
             extraLength = target - stemEndMag;
         }
     }
@@ -1817,7 +1821,7 @@ void Chord::undoChangeSpanArpeggio(Arpeggio* a)
         }
         Chord* chord = toChord(linkedObject);
         Score* score = chord->score();
-        EngravingItem* linkedArp = a->findLinkedInScore(score);
+        EngravingItem* linkedArp = chord->spanArpeggio();
         if (score && linkedArp) {
             score->undo(new ChangeSpanArpeggio(chord, toArpeggio(linkedArp)));
         }

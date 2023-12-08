@@ -325,9 +325,6 @@ void EngravingItem::reset()
     undoResetProperty(Pid::OFFSET);
     setOffsetChanged(false);
     EngravingObject::reset();
-    // *After* having reset all other properties, also reset the linking to score
-    undoResetProperty(Pid::POSITION_LINKED_TO_MASTER);
-    undoResetProperty(Pid::APPEARANCE_LINKED_TO_MASTER);
 }
 
 //---------------------------------------------------------
@@ -1281,6 +1278,27 @@ void EngravingItem::relinkPropertiesToMaster(PropertyGroup propGroup)
             setPropertyFlags(propertyId, masterFlags);
         }
     }
+}
+
+void EngravingItem::relinkPropertyToMaster(Pid propertyId)
+{
+    assert(!score()->isMaster());
+
+    const std::list<EngravingObject*> linkedElements = linkListForPropertyPropagation();
+    EngravingObject* masterElement = nullptr;
+    for (EngravingObject* element : linkedElements) {
+        if (element->score()->isMaster()) {
+            masterElement = element;
+            break;
+        }
+    }
+
+    if (!masterElement) {
+        return;
+    }
+
+    setProperty(propertyId, masterElement->getProperty(propertyId));
+    setPropertyFlags(propertyId, masterElement->propertyFlags(propertyId));
 }
 
 PropertyPropagation EngravingItem::propertyPropagation(const EngravingItem* destinationItem, Pid propertyId) const
@@ -2410,7 +2428,9 @@ void EngravingItem::LayoutData::setBbox(const mu::RectF& r)
 
 const RectF& EngravingItem::LayoutData::bbox(LD_ACCESS mode) const
 {
-    const Shape& sh = m_shape.value(mode);
+    //! NOTE Temporary disabled CHECK - a lot of messages
+    UNUSED(mode);
+    const Shape& sh = m_shape.value(LD_ACCESS::MAYBE_NOTINITED);
 
     //! NOTE Temporary
     {
@@ -2431,7 +2451,8 @@ const RectF& EngravingItem::LayoutData::bbox(LD_ACCESS mode) const
 
 Shape EngravingItem::LayoutData::shape(LD_ACCESS mode) const
 {
-    const Shape& sh = m_shape.value(LD_ACCESS::CHECK);
+    //! NOTE Temporary disabled CHECK - a lot of messages
+    const Shape& sh = m_shape.value(LD_ACCESS::MAYBE_NOTINITED);
 
     //! NOTE Temporary
     //! Reimplementation: done
@@ -2510,6 +2531,34 @@ Shape EngravingItem::LayoutData::shape(LD_ACCESS mode) const
     }
 
     return sh;
+}
+
+#ifndef NDEBUG
+void EngravingItem::LayoutData::doSetPosDebugHook(double x, double y)
+{
+    UNUSED(x);
+    UNUSED(y);
+}
+
+#endif
+
+void EngravingItem::LayoutData::dump(std::stringstream& ss) const
+{
+    ss << "\n";
+    ss << m_item->typeName() << " id: " << m_item->eid().id() << "\n";
+
+    ss << "skip: " << (m_isSkipDraw ? "yes" : "no") << "\n";
+    ss << "mag: " << m_mag << "\n";
+
+    ss << "pos: ";
+    mu::engraving::dump(m_pos, ss);
+    ss << "\n";
+
+    ss << "shape: ";
+    mu::engraving::dump(m_shape, ss);
+    ss << "\n";
+
+    supDump(ss);
 }
 
 double EngravingItem::mag() const

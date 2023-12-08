@@ -52,6 +52,16 @@
     LayoutData* createLayoutData() const override { return new Class::LayoutData(); } \
 
 namespace mu::engraving {
+template<typename T>
+inline void dump(const ld_field<T>& f, std::stringstream& ss)
+{
+    if (f.has_value()) {
+        dump(f.value(), ss);
+    } else {
+        ss << "no value";
+    }
+}
+
 class Factory;
 class XmlReader;
 
@@ -237,8 +247,8 @@ public:
     virtual void setOffset(const PointF& o) { m_offset = o; }
     void setOffset(double x, double y) { m_offset.setX(x), m_offset.setY(y); }
     PointF& roffset() { return m_offset; }
-    double& rxoffset() { return m_offset.rx(); }
-    double& ryoffset() { return m_offset.ry(); }
+    real_t& rxoffset() { return m_offset.rx(); }
+    real_t& ryoffset() { return m_offset.ry(); }
 
     virtual Fraction tick() const;
     virtual Fraction rtick() const;
@@ -569,9 +579,21 @@ public:
 
         OffsetChange offsetChanged() const { return autoplace.offsetChanged; }
 
+        void dump(std::stringstream& ss) const;
+
     protected:
+
+        virtual void supDump(std::stringstream& ss) const { UNUSED(ss); }
+
+#ifndef NDEBUG
+        void doSetPosDebugHook(double x, double y);
+#endif
+
         inline void doSetPos(double x, double y)
         {
+#ifndef NDEBUG
+            doSetPosDebugHook(x, y);
+#endif
             m_pos.mut_value().setX(x),
             m_pos.mut_value().setY(y);
         }
@@ -603,6 +625,7 @@ public:
     virtual bool isUnlinkedFromMaster() const;
     void unlinkPropertyFromMaster(Pid id);
     void relinkPropertiesToMaster(PropertyGroup propGroup);
+    void relinkPropertyToMaster(Pid propertyId);
     PropertyPropagation propertyPropagation(const EngravingItem* destinationItem, Pid propertyId) const;
     virtual bool canBeExcludedFromOtherParts() const { return false; }
     virtual void manageExclusionFromParts(bool exclude);

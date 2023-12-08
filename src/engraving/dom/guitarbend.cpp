@@ -471,7 +471,9 @@ void GuitarBend::updateHoldLine()
 
 double GuitarBend::lineWidth() const
 {
-    return style().styleMM(Sid::guitarBendLineWidth);
+    return (staffType() && staffType()->isTabStaff())
+           ? style().styleMM(Sid::guitarBendLineWidthTab)
+           : style().styleMM(Sid::guitarBendLineWidth);
 }
 
 /****************************************
@@ -632,6 +634,42 @@ mu::draw::Color GuitarBend::uiColor() const
     return curColor();
 }
 
+void GuitarBend::adaptBendsFromTabToStandardStaff(const Staff* staff)
+{
+    // On tabs, bends force end notes to be invisible. When switching to
+    // normal staff we need to turn all the end notes visible again.
+
+    auto processBends = [](Chord* chord) {
+        for (Note* note : chord->notes()) {
+            GuitarBend* bend = note->bendFor();
+            if (!bend) {
+                continue;
+            }
+            bend->endNote()->setVisible(true);
+        }
+    };
+
+    staff_idx_t staffIdx = staff->idx();
+    track_idx_t startTrack = staff2track(staffIdx);
+    track_idx_t endTrack = startTrack + VOICES;
+    for (Segment* segment = staff->score()->firstSegment(SegmentType::ChordRest); segment; segment = segment->next1()) {
+        if (!segment->isChordRestType()) {
+            continue;
+        }
+        for (track_idx_t track = startTrack; track < endTrack; ++track) {
+            EngravingItem* item = segment->elementAt(track);
+            if (!item || !item->isChord()) {
+                continue;
+            }
+            Chord* chord = toChord(item);
+            processBends(chord);
+            for (Chord* grace : chord->graceNotes()) {
+                processBends(grace);
+            }
+        }
+    }
+}
+
 /****************************************
  *            GuitarBendHold
  * **************************************/
@@ -670,7 +708,7 @@ Note* GuitarBendHold::endNote() const
 
 double GuitarBendHold::lineWidth() const
 {
-    return style().styleMM(Sid::guitarBendLineWidth);
+    return style().styleMM(Sid::guitarBendLineWidthTab);
 }
 
 /****************************************

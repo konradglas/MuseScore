@@ -19,41 +19,27 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MU_GLOBAL_NUMBER_H
-#define MU_GLOBAL_NUMBER_H
+#include "dumplayoutdata.h"
 
-#include <limits>
-#include <cassert>
+#include <sstream>
 
-namespace mu {
-template<typename T>
-inline bool is_zero(T v)
+#include "dom/score.h"
+
+using namespace mu::engraving;
+using namespace mu::engraving::rendering::dev;
+
+static void dumpLayoutData(const EngravingItem* item, std::stringstream& ss)
 {
-    if constexpr (std::numeric_limits<T>::is_integer) {
-        return v == 0;
-    } else {
-        return std::abs(v) <= std::numeric_limits<T>::epsilon();
+    item->ldata()->dump(ss);
+
+    for (EngravingItem* ch : item->childrenItems()) {
+        dumpLayoutData(ch, ss);
     }
 }
 
-template<typename T>
-inline T divide(const T& dividend, const T& divisor)
+std::string DumpLayoutData::dump(const Score* s)
 {
-    if (is_zero(divisor)) {
-        assert(!is_zero(divisor));
-        return T();
-    }
-    return dividend / divisor;
+    std::stringstream ss;
+    dumpLayoutData(s->rootItem(), ss);
+    return ss.str();
 }
-
-template<typename T>
-inline T divide(const T& dividend, const T& divisor, const T& def)
-{
-    if (is_zero(divisor)) {
-        return def;
-    }
-    return dividend / divisor;
-}
-}
-
-#endif // MU_GLOBAL_NUMBER_H

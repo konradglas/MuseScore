@@ -731,17 +731,22 @@ void Spanner::computeStartElement()
             m_startElement = startSegment();
         } else {
             Segment* seg = score()->tick2segmentMM(tick(), false, SegmentType::ChordRest);
-            if (!seg || seg->empty()) {
+            if (!seg || seg->empty() || !seg->element(track())) {
                 seg = score()->tick2segment(tick(), false, SegmentType::ChordRest);
             }
-            track_idx_t strack = (track() / VOICES) * VOICES;
-            track_idx_t etrack = strack + VOICES;
-            m_startElement = 0;
+            m_startElement = nullptr;
             if (seg) {
-                for (track_idx_t t = strack; t < etrack; ++t) {
-                    if (seg->element(t)) {
-                        m_startElement = seg->element(t);
-                        break;
+                EngravingItem* e = seg->element(track());
+                if (e) {
+                    m_startElement = e;
+                } else {
+                    track_idx_t strack = (track() / VOICES) * VOICES;
+                    track_idx_t etrack = strack + VOICES;
+                    for (track_idx_t t = strack; t < etrack; ++t) {
+                        if (seg->element(t)) {
+                            m_startElement = seg->element(t);
+                            break;
+                        }
                     }
                 }
             }

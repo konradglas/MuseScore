@@ -2775,6 +2775,11 @@ PropertyValue Note::getProperty(Pid propertyId) const
         return fixed();
     case Pid::FIXED_LINE:
         return fixedLine();
+    case Pid::POSITION_LINKED_TO_MASTER:
+    case Pid::APPEARANCE_LINKED_TO_MASTER:
+        if (chord()) {
+            return EngravingItem::getProperty(propertyId).toBool() && chord()->getProperty(propertyId).toBool();
+        }
     default:
         break;
     }
@@ -2875,6 +2880,13 @@ bool Note::setProperty(Pid propertyId, const PropertyValue& v)
     case Pid::FIXED_LINE:
         setFixedLine(v.toInt());
         break;
+    case Pid::POSITION_LINKED_TO_MASTER:
+    case Pid::APPEARANCE_LINKED_TO_MASTER:
+        if (v.toBool() == true && chord()) {
+            // when re-linking, also re-link the parent chord
+            chord()->setProperty(propertyId, v);
+        }
+    // fall through
     default:
         if (!EngravingItem::setProperty(propertyId, v)) {
             return false;
@@ -2928,6 +2940,11 @@ PropertyValue Note::propertyDefault(Pid propertyId) const
     case Pid::PITCH:
     case Pid::TPC1:
         return PropertyValue();
+    case Pid::VISIBLE:
+        if (staffType() && staffType()->isTabStaff() && bendBack()) {
+            return false;
+        }
+        return EngravingItem::propertyDefault(propertyId);
     default:
         break;
     }
@@ -3594,6 +3611,34 @@ bool Note::isGraceBendStart() const
     GuitarBend* bend = bendFor();
 
     return bend && bend->type() == GuitarBendType::GRACE_NOTE_BEND;
+}
+
+bool Note::hasAnotherStraightAboveOrBelow(bool above) const
+{
+    if (!chord()) {
+        return false;
+    }
+
+    const std::vector<Note*>& notes = chord()->notes();
+
+    if ((above && this == notes.back()) || (!above && this == notes.front())) {
+        return false;
+    }
+
+    const double limitDiff = 0.5 * spatium();
+    for (Note* note : notes) {
+        if (note == this) {
+            continue;
+        }
+        if (abs(note->pos().x() - pos().x()) > limitDiff) {
+            return false;
+        }
+        if ((above && note->line() < m_line) || (!above && note->line() > m_line)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 mu::PointF Note::posInStaffCoordinates()

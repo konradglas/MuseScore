@@ -338,8 +338,12 @@ Shape SlurSegment::getSegmentShape(Segment* seg, ChordRest* startCR, ChordRest* 
         if (!e || !e->isChordRest()) {
             continue;
         }
-        // Gets ties shapes
+        // Gets tie and 2 note tremolo shapes
         if (e->isChord()) {
+            Chord* chord = toChord(e);
+            if (chord->tremolo() && chord->tremolo()->twoNotes()) {
+                segShape.add(chord->tremolo()->shape());
+            }
             for (Note* note : toChord(e)->notes()) {
                 Tie* tieFor = note->tieFor();
                 Tie* tieBack = note->tieBack();
@@ -663,6 +667,7 @@ void SlurSegment::computeBezier(mu::PointF p6offset)
         slur()->setBroken(true);
         return;
     }
+
     // Set up coordinate transforms
     // CAUTION: transform operations are applies in reverse order to how
     // they are added to the transformation.
@@ -683,6 +688,14 @@ void SlurSegment::computeBezier(mu::PointF p6offset)
     double shoulderW; // expressed as fraction of slur-length
     double shoulderH;
     double d = p2.x() / _spatium;
+
+    if (d < 0) {
+        //! NOTE A negative d means that end point is before the start point.
+        //! This only exists as a temporary state when horizontal spacing hasn't yet been computed,
+        //! and it makes no sense for any of the following calculations
+        return;
+    }
+
     if (d < 2) {
         shoulderW = 0.60;
     } else if (d < 10) {
@@ -913,41 +926,9 @@ int Slur::calcStemArrangement(EngravingItem* start, EngravingItem* end)
 
 bool Slur::isDirectionMixture(Chord* c1, Chord* c2)
 {
-    if (c1->track() != c2->track()) {
-        return false;
-    }
-    bool up = c1->up();
-    if (c2->isGrace() && c2->up() != up) {
-        return true;
-    }
-    if (c1->isGraceBefore() && c2->isGraceAfter() && c1->parentItem() == c2->parentItem()) {
-        if (toChord(c1->parentItem())->stem() && toChord(c1->parentItem())->up() != up) {
-            return true;
-        }
-    }
-    track_idx_t track = c1->track();
-    for (Measure* m = c1->measure(); m; m = m->nextMeasure()) {
-        for (Segment* seg = m->first(); seg; seg = seg->next(SegmentType::ChordRest)) {
-            if (!seg || seg->tick() < c1->tick() || !seg->isChordRestType()) {
-                continue;
-            }
-            if (seg->tick() > c2->tick()) {
-                return false;
-            }
-            if ((c1->isGrace() || c2->isGraceBefore()) && seg->tick() >= c2->tick()) {
-                // if slur ends at a grace-note-before, we don't need to look at the main note
-                return false;
-            }
-            EngravingItem* e = seg->element(track);
-            if (!e || !e->isChord()) {
-                continue;
-            }
-            Chord* c = toChord(e);
-            if (c->up() != up) {
-                return true;
-            }
-        }
-    }
+    UNUSED(c1);
+    UNUSED(c2);
+    UNREACHABLE;
     return false;
 }
 

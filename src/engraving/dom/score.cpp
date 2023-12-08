@@ -3649,8 +3649,22 @@ void Score::collectMatch(void* data, EngravingItem* e)
         }
     }
 
-    if (p->measure && (p->measure != e->findMeasure())) {
-        return;
+    if (p->measure) {
+        auto eMeasure = e->findMeasure();
+        if (!eMeasure && e->isSpannerSegment()) {
+            if (auto ss = toSpannerSegment(e)) {
+                if (auto s = ss->spanner()) {
+                    if (auto se = s->startElement()) {
+                        if (auto mse = se->findMeasure()) {
+                            eMeasure = mse;
+                        }
+                    }
+                }
+            }
+        }
+        if (p->measure != eMeasure) {
+            return;
+        }
     }
 
     if ((p->beat.isValid()) && (p->beat != e->beat())) {
@@ -3736,9 +3750,7 @@ void Score::selectSimilar(EngravingItem* e, bool sameStaff)
     }
     pattern.staffStart = sameStaff ? e->staffIdx() : mu::nidx;
     pattern.staffEnd = sameStaff ? e->staffIdx() + 1 : mu::nidx;
-    pattern.voice   = mu::nidx;
-    pattern.system  = 0;
-    pattern.durationTicks = Fraction(-1, 1);
+    pattern.voice = mu::nidx;
 
     score->scanElements(&pattern, collectMatch);
 
@@ -3772,9 +3784,7 @@ void Score::selectSimilarInRange(EngravingItem* e)
     }
     pattern.staffStart = selection().staffStart();
     pattern.staffEnd = selection().staffEnd();
-    pattern.voice   = mu::nidx;
-    pattern.system  = 0;
-    pattern.durationTicks = Fraction(-1, 1);
+    pattern.voice = mu::nidx;
 
     score->scanElementsInRange(&pattern, collectMatch);
 
@@ -5587,6 +5597,19 @@ void Score::doLayoutRange(const Fraction& st, const Fraction& et)
 {
     TRACEFUNC;
 
+    Fraction start = st;
+    Fraction end = et;
+
+    auto spanners = score()->spannerMap().findOverlapping(st.ticks(), et.ticks());
+    for (auto interval : spanners) {
+        Spanner* spanner = interval.value;
+        if (!spanner->staff()->visible()) {
+            continue;
+        }
+        start = std::min(st, spanner->tick());
+        end = std::max(et, spanner->tick2());
+    }
+
     m_engravingFont = engravingFonts()->fontByName(style().value(Sid::MusicalSymbolFont).value<String>().toStdString());
     m_layoutOptions.noteHeadWidth = m_engravingFont->width(SymId::noteheadBlack, style().spatium() / SPATIUM20);
 
@@ -5600,7 +5623,7 @@ void Score::doLayoutRange(const Fraction& st, const Fraction& et)
         this->updateVelo();
     }
 
-    renderer()->layoutScore(this, st, et);
+    renderer()->layoutScore(this, start, end);
 
     if (m_resetAutoplace) {
         m_resetAutoplace = false;

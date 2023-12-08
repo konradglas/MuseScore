@@ -272,12 +272,6 @@ EngravingItem* Rest::drop(EditData& data)
         }
         break;
     }
-    case ElementType::SYMBOL:
-    case ElementType::IMAGE:
-        e->setParent(this);
-        score()->undoAddElement(e);
-        return e;
-
     case ElementType::STRING_TUNINGS:
         return measure()->drop(data);
 
@@ -680,7 +674,7 @@ PointF Rest::stemPos() const
 PointF Rest::stemPosBeam() const
 {
     PointF p(pagePos());
-    if (m_up) {
+    if (ldata()->up) {
         p.ry() += ldata()->bbox().top() + spatium() * 1.5;
     } else {
         p.ry() += ldata()->bbox().bottom() - spatium() * 1.5;
@@ -694,7 +688,7 @@ PointF Rest::stemPosBeam() const
 
 double Rest::stemPosX() const
 {
-    if (m_up) {
+    if (ldata()->up) {
         return ldata()->bbox().right();
     } else {
         return ldata()->bbox().left();
@@ -790,12 +784,6 @@ void Rest::add(EngravingItem* e)
         break;
     case ElementType::DEAD_SLAPPED:
         m_deadSlapped = toDeadSlapped(e);
-    // fallthrough
-    case ElementType::SYMBOL:
-    case ElementType::IMAGE:
-        addEl(e);
-        e->added();
-        break;
     default:
         ChordRest::add(e);
         break;

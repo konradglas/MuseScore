@@ -378,13 +378,13 @@ TEST_F(Musicxml_Tests, arpGliss3) {
     mxmlIoTest("testArpGliss3");
 }
 TEST_F(Musicxml_Tests, articulationCombination) {
-    mxmlIoTest("testArticulationCombination");
+    mxmlIoTestRef("testArticulationCombination");
 }
 TEST_F(Musicxml_Tests, backupRoundingError) {
     mxmlImportTestRef("testBackupRoundingError");
 }
 TEST_F(Musicxml_Tests, barlineFermatas) {
-    mxmlMscxExportTestRef("testBarlineFermatas");
+    mxmlIoTest("testBarlineFermatas");
 }
 TEST_F(Musicxml_Tests, barStyles) {
     mxmlIoTest("testBarStyles");
@@ -807,10 +807,13 @@ TEST_F(Musicxml_Tests, numberedLyrics) {
     mxmlIoTestRef("testNumberedLyrics");
 }
 TEST_F(Musicxml_Tests, pedalChanges) {
-    mxmlImportTestRef("testPedalChanges");
+    mxmlIoTest("testPedalChanges");
 }
 TEST_F(Musicxml_Tests, pedalChangesBroken) {
     mxmlImportTestRef("testPedalChangesBroken");
+}
+TEST_F(Musicxml_Tests, pedalStyles) {
+    mxmlIoTest("testPedalStyles");
 }
 TEST_F(Musicxml_Tests, placementDefaults) {
     mxmlImportTestRef("testPlacementDefaults");

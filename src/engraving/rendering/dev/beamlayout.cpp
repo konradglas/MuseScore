@@ -345,7 +345,7 @@ void BeamLayout::layout2(Beam* item, LayoutContext& ctx, const std::vector<Chord
         item->layoutInfo->calculateAnchors(chordRests, item->notes());
         item->setStartAnchor(item->layoutInfo->startAnchor());
         item->setEndAnchor(item->layoutInfo->endAnchor());
-        item->setSlope((item->endAnchor().y() - item->startAnchor().y()) / (item->endAnchor().x() - item->startAnchor().x()));
+        item->setSlope(mu::divide(item->endAnchor().y() - item->startAnchor().y(), item->endAnchor().x() - item->startAnchor().x(), 0.0));
         item->setBeamDist(item->layoutInfo->beamDist());
     } else {
         item->setSlope(0.0);
@@ -660,6 +660,14 @@ void BeamLayout::createBeams(LayoutContext& ctx, Measure* measure)
                 continue;
             }
 
+            if (cr->isChord()) {
+                Chord* chord = toChord(cr);
+                for (Chord* c : chord->graceNotes()) {
+                    c->setBeamlet(nullptr); // Will be defined during beam layout
+                }
+            }
+            cr->setBeamlet(nullptr); // Will be defined during beam layout
+
             if (firstCR) {
                 firstCR = false;
                 // Handle cross-measure beams
@@ -926,8 +934,7 @@ void BeamLayout::verticalAdjustBeamedRests(Rest* rest, Beam* beam, LayoutContext
 
 void BeamLayout::createBeamSegments(Beam* item, LayoutContext& ctx, const std::vector<ChordRest*>& chordRests)
 {
-    DeleteAll(item->beamSegments());
-    item->beamSegments().clear();
+    item->clearBeamSegments();
 
     bool levelHasBeam = false;
     int level = 0;
