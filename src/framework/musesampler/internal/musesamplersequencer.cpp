@@ -48,6 +48,7 @@ static const std::unordered_map<mpe::ArticulationType, ms_NoteArticulation> ARTI
     { mpe::ArticulationType::DiscreteGlissando, ms_NoteArticulation_Glissando },
     { mpe::ArticulationType::ContinuousGlissando, ms_NoteArticulation_Portamento },
     { mpe::ArticulationType::Slide, ms_NoteArticulation_Portamento },
+    { mpe::ArticulationType::LaissezVibrer, ms_NoteArticulation_LetRing },
 
     { mpe::ArticulationType::Scoop, ms_NoteArticulation_Scoop },
     { mpe::ArticulationType::Plop, ms_NoteArticulation_Plop },
