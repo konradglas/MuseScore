@@ -71,10 +71,9 @@ protected:
     bool isMouseWithinBoundaries(const QPointF& mousePos) const;
 
     void notifyAboutClose();
-
-private:
     QWindow* parentWindow() const;
 
+private:
     bool m_active = false;
 
     QQuickItem* m_parentItem = nullptr;
